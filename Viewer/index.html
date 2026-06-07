@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PCB Assembly — 3D Viewer</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0c0f;
+      --surface: #111418;
+      --border: #1e2530;
+      --accent: #00e5a0;
+      --accent2: #0077ff;
+      --text: #e8edf3;
+      --muted: #5a6678;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top bar */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 52px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .logo-text {
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      color: var(--text);
+    }
+
+    .logo-text span { color: var(--accent); }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .badge {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      background: rgba(0,229,160,0.08);
+      border: 1px solid rgba(0,229,160,0.2);
+      padding: 3px 8px;
+      border-radius: 3px;
+    }
+
+    /* Canvas container */
+    #canvas-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Loading overlay */
+    #loader {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      z-index: 20;
+      transition: opacity 0.6s ease;
+    }
+
+    #loader.hidden { opacity: 0; pointer-events: none; }
+
+    .loader-ring {
+      width: 48px; height: 48px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loader-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    #load-progress {
+      font-family: 'Space Mono', monospace;
+      font-size: 22px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+
+    /* Controls hint */
+    #hint {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 16px;
+      background: rgba(17,20,24,0.85);
+      border: 1px solid var(--border);
+      padding: 8px 18px;
+      border-radius: 100px;
+      backdrop-filter: blur(8px);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      pointer-events: none;
+    }
+
+    #hint.visible { opacity: 1; }
+
+    .hint-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .hint-key {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      color: var(--text);
+      background: var(--border);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    /* Side panel */
+    #panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(17,20,24,0.85);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      backdrop-filter: blur(12px);
+      min-width: 160px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    #panel.visible { opacity: 1; }
+
+    .panel-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .panel-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(30,37,48,0.6);
+      font-size: 12px;
+      gap: 16px;
+    }
+
+    .panel-row:last-child { border-bottom: none; }
+    .panel-key { color: var(--muted); font-size: 11px; }
+    .panel-val { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent); }
+
+    /* Reset button */
+    #reset-btn {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(17,20,24,0.85);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: color 0.2s, border-color 0.2s;
+      opacity: 0;
+      letter-spacing: 0.05em;
+    }
+
+    #reset-btn.visible { opacity: 1; }
+    #reset-btn:hover { color: var(--accent); border-color: rgba(0,229,160,0.3); }
+
+    /* Error */
+    #error-msg {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      padding: 32px;
+    }
+
+    #error-msg.show { display: flex; }
+    #error-msg strong { color: #ff5a5a; font-family: 'Space Mono', monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <span class="logo-text">PCB<span>/</span>ASSEMBLY</span>
+  </div>
+  <div class="header-right">
+    <span class="badge">3D VIEWER</span>
+  </div>
+</header>
+
+<div id="canvas-wrap">
+  <canvas id="c"></canvas>
+
+  <div id="loader">
+    <div class="loader-ring"></div>
+    <div id="load-progress">0%</div>
+    <div class="loader-label">LOADING MODEL</div>
+  </div>
+
+  <div id="error-msg">
+    <strong>LOAD ERROR</strong>
+    <span id="error-text">Could not load the 3D model. Check the OBJ/MTL URLs.</span>
+  </div>
+
+  <div id="panel">
+    <div class="panel-title">Model Info</div>
+    <div class="panel-row"><span class="panel-key">Format</span><span class="panel-val">OBJ</span></div>
+    <div class="panel-row"><span class="panel-key">Materials</span><span class="panel-val" id="mat-count">—</span></div>
+    <div class="panel-row"><span class="panel-key">Groups</span><span class="panel-val" id="grp-count">—</span></div>
+  </div>
+
+  <button id="reset-btn">⟳ RESET VIEW</button>
+
+  <div id="hint">
+    <div class="hint-item"><span class="hint-key">drag</span> rotate</div>
+    <div class="hint-item"><span class="hint-key">scroll</span> zoom</div>
+    <div class="hint-item"><span class="hint-key">right drag</span> pan</div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+// Replace these with your Cloudinary URLs for OBJ and MTL
+const OBJ_URL = './Assembled (Assembly).obj';
+const MTL_URL = './Assembled (Assembly).mtl';
+// ────────────────────────────────────────────────────────────────────────────
+
+const canvas   = document.getElementById('c');
+const loader   = document.getElementById('loader');
+const progress = document.getElementById('load-progress');
+const hint     = document.getElementById('hint');
+const panel    = document.getElementById('panel');
+const resetBtn = document.getElementById('reset-btn');
+const errorMsg = document.getElementById('error-msg');
+const errorTxt = document.getElementById('error-text');
+
+// Scene
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0c0f);
+scene.fog = new THREE.Fog(0x0a0c0f, 20, 60);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
+camera.position.set(3, 2, 4);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 0.5;
+controls.maxDistance = 30;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.6;
+
+// Lights
+const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambient);
+
+const key = new THREE.DirectionalLight(0xffffff, 2.5);
+key.position.set(5, 8, 5);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0x80b4ff, 0.8);
+fill.position.set(-5, 2, -3);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0x00e5a0, 0.4);
+rim.position.set(0, -3, -5);
+scene.add(rim);
+
+// Grid
+const grid = new THREE.GridHelper(20, 40, 0x1e2530, 0x1e2530);
+grid.material.opacity = 0.4;
+grid.material.transparent = true;
+scene.add(grid);
+
+// Store default camera state for reset
+let defaultCamPos, defaultTarget;
+
+// Load model
+const mtlLoader = new MTLLoader();
+
+mtlLoader.load(
+  MTL_URL,
+  (materials) => {
+    materials.preload();
+    const objLoader = new OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.load(
+      OBJ_URL,
+      (obj) => {
+        // Center and scale
+        const box = new THREE.Box3().setFromObject(obj);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 3 / maxDim;
+
+        obj.position.sub(center.multiplyScalar(scale));
+        obj.scale.setScalar(scale);
+
+        // Place on grid
+        const box2 = new THREE.Box3().setFromObject(obj);
+        obj.position.y -= box2.min.y;
+
+        scene.add(obj);
+
+        // Update grid position
+        grid.position.y = 0;
+
+        // Camera fit
+        const dist = maxDim * scale * 1.8;
+        camera.position.set(dist, dist * 0.7, dist);
+        controls.target.set(0, (box2.max.y - box2.min.y) / 2, 0);
+        controls.update();
+
+        // Save defaults
+        defaultCamPos = camera.position.clone();
+        defaultTarget = controls.target.clone();
+
+        // Stats
+        let meshCount = 0, matSet = new Set();
+        obj.traverse(child => {
+          if (child.isMesh) {
+            meshCount++;
+            if (child.material) {
+              const mats = Array.isArray(child.material) ? child.material : [child.material];
+              mats.forEach(m => matSet.add(m.name));
+            }
+          }
+        });
+
+        document.getElementById('mat-count').textContent = matSet.size;
+        document.getElementById('grp-count').textContent = meshCount;
+
+        // Hide loader
+        loader.classList.add('hidden');
+        setTimeout(() => {
+          hint.classList.add('visible');
+          panel.classList.add('visible');
+          resetBtn.classList.add('visible');
+          loader.style.display = 'none';
+        }, 700);
+      },
+      (xhr) => {
+        if (xhr.lengthComputable) {
+          const pct = Math.round((xhr.loaded / xhr.total) * 100);
+          progress.textContent = pct + '%';
+        }
+      },
+      (err) => {
+        console.error('OBJ error', err);
+        loader.style.display = 'none';
+        errorTxt.textContent = 'Could not load OBJ file. Check the URL in index.html.';
+        errorMsg.classList.add('show');
+      }
+    );
+  },
+  undefined,
+  (err) => {
+    console.error('MTL error', err);
+    // Try loading OBJ without materials
+    const objLoader = new OBJLoader();
+    objLoader.load(OBJ_URL,
+      (obj) => {
+        obj.traverse(c => { if (c.isMesh) c.material = new THREE.MeshStandardMaterial({ color: 0x4a9e6f, metalness: 0.3, roughness: 0.6 }); });
+        scene.add(obj);
+        loader.classList.add('hidden');
+        setTimeout(() => { hint.classList.add('visible'); panel.classList.add('visible'); resetBtn.classList.add('visible'); }, 700);
+      },
+      undefined,
+      () => { loader.style.display = 'none'; errorMsg.classList.add('show'); }
+    );
+  }
+);
+
+// Reset button
+resetBtn.addEventListener('click', () => {
+  if (!defaultCamPos) return;
+  camera.position.copy(defaultCamPos);
+  controls.target.copy(defaultTarget);
+  controls.update();
+});
+
+// Stop auto-rotate on interaction
+controls.addEventListener('start', () => { controls.autoRotate = false; });
+
+// Resize
+function resize() {
+  const w = canvas.parentElement.clientWidth;
+  const h = canvas.parentElement.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Render loop
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
