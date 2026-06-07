@@ -52,6 +52,18 @@ This was also my **first time designing a PCB and creating 3D models in Fusion 3
   <img width="838" alt="Case Design" src="https://github.com/user-attachments/assets/0e7901c2-8a37-410b-9532-d6bc49f3c251" />
 </p>
 
+## Bill
+
+| Component | Name |
+| :--- | :--- |
+| **Microcontroller** | Seeed XIAO RP2040 Development Board |
+| **Board** | In the files |
+| **Design** | In the files |
+| **Switches** | sw_cherry_mx |
+| **Keycaps** | Blank Keycapss |
+| **Screws** | M3×16mm screws |
+| **Heatset** | M3×5×4mm heatset |
+
 ## Credits
 
 ### Cherry MX Switch Model
