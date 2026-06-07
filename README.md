@@ -56,11 +56,11 @@ This was also my **first time designing a PCB and creating 3D models in Fusion 3
 
 | Component | Name |
 | :--- | :--- |
-| **Microcontroller** | Seeed XIAO RP2040 Development Board |
+| **Microcontroller** | Seeed XIAO RP2040 |
 | **Board** | In the files |
 | **Design** | In the files |
-| **Switches** | sw_cherry_mx |
-| **Keycaps** | Blank Keycapss |
+| **Switches** | MX-Style switches |
+| **Keycaps** | White blank DSA keycaps |
 | **Screws** | M3×16mm screws |
 | **Heatset** | M3×5×4mm heatset |
 
